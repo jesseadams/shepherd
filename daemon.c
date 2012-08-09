@@ -8,6 +8,7 @@
 #include <syslog.h>
 #include <string.h>
 #include "lib/daemonize.h"
+#include "lib/inih/include/ini.h"
 
 int main(int argc, char *argv[]) {
 
