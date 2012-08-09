@@ -10,7 +10,30 @@
 #include "lib/daemonize.h"
 #include "lib/inih/include/ini.h"
 
+typedef struct
+{
+	int log_level;
+	const char* sleep_interval;
+} configuration;
+
+static int handler(void* user, const char* section, const char* name, 
+					const char* value)
+{
+    configuration* pconfig = (configuration*)user;
+
+    #define MATCH(s, n) strncasecmp(section, s) == 0 && strncasecmp(name, n) == 0
+    if (MATCH("shepherd", "log_level")) {
+        pconfig->log_level = atoi(value);
+    } else if (MATCH("shepherd", "sleep_interval")) {
+        pconfig->sleep_interval = strdup(value);
+    } else {
+        return 0;  /* unknown section/name, error */
+    }
+    return 1;
+}
+
 int main(int argc, char *argv[]) {
+    configuration config;
 
 	// Our process ID and Session ID
 	pid_t pid, sid;
@@ -33,8 +56,8 @@ int main(int argc, char *argv[]) {
 
 	// Open any logs here
 	setlogmask(LOG_UPTO(LOG_DEBUG));
-	openlog ("shepherd", LOG_CONS | LOG_PID | LOG_NDELAY, LOG_USER);
-	syslog (LOG_DEBUG, "Logging mechanism initialized");
+	openlog("shepherd", LOG_CONS | LOG_PID | LOG_NDELAY, LOG_USER);
+	syslog(LOG_DEBUG, "Logging mechanism initialized");
 
 	// Create a new SID for the child process
 	sid = setsid();
@@ -59,6 +82,15 @@ int main(int argc, char *argv[]) {
 	// Daemon-specific initialization goes here
 	daemon_init();
 
+	// Parse the log file
+	if (ini_parse("shepherd.conf", handler, &config) < 0) {
+		syslog(LOG_ERR, "Can not load shepherd.conf");
+		closelog();
+		exit(EXIT_FAILURE);
+    }
+    syslog(LOG_DEBUG, "Config loaded from 'test.ini'. log_level=%i, sleep_interval=%s",
+        config.log_level, config.sleep_interval);
+
 	// An infinite loop
 	while (1) {
 		// Verify the accessibility of the local redis instance
@@ -71,6 +103,6 @@ int main(int argc, char *argv[]) {
 		// send request to 
 		sleep(30); // wait 30 seconds
 	}
-	closelog ();
+	closelog();
 	exit(EXIT_SUCCESS);
 }

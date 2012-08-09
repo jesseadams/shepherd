@@ -4,15 +4,15 @@ SRC = daemon.c
 OBJ = ${SRC:.c=.o}
 DST = ${SRC:.c=}
 
-all: options sentinal install
+all: options shepherd install
 
 options:
-	@echo "Sentinal Build Options"
+	@echo "Shepherd Build Options"
 	@echo "CFLAGS   = ${CFLAGS}"
 	@echo "LDFLAGS  = ${LDFLAGS}"
 	@echo "CC       = ${CC}"
 
-sentinal:
+shepherd:
 	$(CC) $(CFLAGS) $(SRC) -o $(DST)
 
 install:
