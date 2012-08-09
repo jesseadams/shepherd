@@ -31,7 +31,9 @@ int main(int argc, char *argv[]) {
 	umask(0);
 
 	// Open any logs here
-	// ...
+	setlogmask(LOG_UPTO(LOG_DEBUG));
+	openlog ("shepherd", LOG_CONS | LOG_PID | LOG_NDELAY, LOG_USER);
+	syslog (LOG_DEBUG, "Logging mechanism initialized");
 
 	// Create a new SID for the child process
 	sid = setsid();
@@ -66,8 +68,8 @@ int main(int argc, char *argv[]) {
 		//     set proxy destination to NEW_SLAVE:16739
 		//
 		// send request to 
-
 		sleep(30); // wait 30 seconds
 	}
+	closelog ();
 	exit(EXIT_SUCCESS);
 }
