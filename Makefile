@@ -1,6 +1,6 @@
 include config.mk
 
-SRC = daemon.c
+SRC = daemon.c lib/iniparser/libiniparser.a
 OBJ = ${SRC:.c=.o}
 DST = ${SRC:.c=}
 
