@@ -8,6 +8,7 @@
 #include <syslog.h>
 #include <string.h>
 #include "lib/daemonize.h"
+#include "lib/iniparser/src/iniparser.h"
 
 int main(int argc, char *argv[]) {
 
@@ -30,23 +31,40 @@ int main(int argc, char *argv[]) {
 	// Change the file mode mask
 	umask(0);
 
+	int sleep_interval;
+	dictionary * config;
+	int log_level;
+
+	config = iniparser_load("shepherd.ini");
+    if (config == NULL) {
+		exit(EXIT_FAILURE);
+    }
+
+	sleep_interval = iniparser_getint(config, "shepherd:sleep_interval", 15);
+	log_level = iniparser_getint(config, "shepherd:log_level", LOG_INFO);
+
 	// Open any logs here
 	setlogmask(LOG_UPTO(LOG_DEBUG));
-	openlog ("shepherd", LOG_CONS | LOG_PID | LOG_NDELAY, LOG_USER);
-	syslog (LOG_DEBUG, "Logging mechanism initialized");
+	openlog("shepherd", LOG_CONS | LOG_PID | LOG_NDELAY, LOG_USER);
+	syslog(LOG_DEBUG, "Logging mechanism initialized");
+	syslog(LOG_DEBUG, "sheperd:sleep_interval = %i", sleep_interval);
+	syslog(LOG_DEBUG, "sheperd:log_level = %i", log_level);
 
 	// Create a new SID for the child process
 	sid = setsid();
 	if (sid < 0) {
 		// Log the failure
+		syslog(LOG_ERR, "Unable to create SID for child process");
 		exit(EXIT_FAILURE);
 	}
 
+	// TODO: Kris - What is this for?
 	// Change the current working directory
-	if ((chdir("/")) < 0) {
-		// Log the failure
-		exit(EXIT_FAILURE);
-	}
+	//if ((chdir("/")) < 0) {
+		//// Log the failure
+		//syslog(LOG_ERR, "Unable to change current directory");
+		//exit(EXIT_FAILURE);
+	//}
 
 	// Close out the standard file descriptors
 	// Because daemons generally dont interact directly with users,
@@ -60,6 +78,8 @@ int main(int argc, char *argv[]) {
 
 	// An infinite loop
 	while (1) {
+		syslog(LOG_DEBUG, "Ping!");
+
 		// Verify the accessibility of the local redis instance
 		// if can:
 		//     set proxy destination to localhost:16739
@@ -68,8 +88,8 @@ int main(int argc, char *argv[]) {
 		//     set proxy destination to NEW_SLAVE:16739
 		//
 		// send request to 
-		sleep(30); // wait 30 seconds
+		sleep(sleep_interval); // wait 30 seconds
 	}
-	closelog ();
+	closelog();
 	exit(EXIT_SUCCESS);
 }
