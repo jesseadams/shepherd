@@ -1,3 +1,4 @@
+// Due to the c99 standard the use of popen throws some warnings.
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <stdlib.h>
@@ -16,6 +17,27 @@
 // These are temporary and should be removed!
 #include <assert.h>
 #include "lib/rabbitmq/examples/utils.h"
+
+int run_command(char *command)
+{
+	FILE *fp;
+	char path[1035];
+
+	syslog(LOG_DEBUG, "Running command: %s", command);
+	fp = popen(command, "r");
+	if (fp == NULL) {
+		syslog(LOG_ERR, "Failed to run command: %s", command);
+		return 0;
+	}
+
+	while (fgets(path, sizeof(path)-1, fp) != NULL) {
+		syslog(LOG_DEBUG, path);
+	}
+
+	pclose(fp);
+
+ 	return 1;
+}
 
 char * get_amqp_body(void const *buffer, size_t len)
 {
@@ -84,6 +106,7 @@ static void run(amqp_connection_state_t conn)
 		char * body = get_amqp_body(frame.payload.body_fragment.bytes,
 									frame.payload.body_fragment.len);
 		syslog (LOG_DEBUG, "Message recieved: %s\n", (char*)body);
+		run_command(body);
 		/*printf("Message recieved: %s\n", (char*)get_amqp_body(
 			frame.payload.body_fragment.bytes,
 			frame.payload.body_fragment.len
