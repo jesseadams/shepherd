@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <syslog.h>
 #include <string.h>
+#include <ctype.h>
 #include "lib/daemonize.h"
 #include "lib/iniparser/src/iniparser.h"
 #include "lib/rabbitmq/librabbitmq/amqp.h"
@@ -37,17 +38,12 @@ char * get_amqp_body(void const *buffer, size_t len)
 
 static void run(amqp_connection_state_t conn)
 {
-	uint64_t start_time = now_microseconds();
-	int received = 0;
-	int previous_received = 0;
-	uint64_t previous_report_time = start_time;
-	uint64_t next_summary_time = start_time + 1000000;
 	amqp_frame_t frame;
 	int result;
 	size_t body_received;
 	size_t body_target;
-	uint64_t now;
 
+	syslog(LOG_DEBUG, "Waiting for messages...");
 	while (1) {
 		amqp_maybe_release_buffers(conn);
 		result = amqp_simple_wait_frame(conn, &frame);
@@ -97,6 +93,8 @@ static void run(amqp_connection_state_t conn)
 
 static amqp_connection_state_t rabbitmq_connect(char const *hostname,
 												int port,
+												char const *user,
+												char const *password,
 												char const *exchange,
 												char const *bindingkey)
 {
@@ -110,8 +108,10 @@ static amqp_connection_state_t rabbitmq_connect(char const *hostname,
 	die_on_error(sockfd = amqp_open_socket(hostname, port),
 				"Opening socket");
 	amqp_set_sockfd(conn, sockfd);
+	
+	syslog(LOG_DEBUG, "Logging into RabbitMQ instance as %s", user);
 	die_on_amqp_error(amqp_login(conn, "/", 0, 131072, 0, 
-						AMQP_SASL_METHOD_PLAIN, "guest", "guest"), 
+						AMQP_SASL_METHOD_PLAIN, user, password), 
 						"Logging in");
 	amqp_channel_open(conn, 1);
 	die_on_amqp_error(amqp_get_rpc_reply(conn), "Opening channel");
@@ -135,10 +135,11 @@ static amqp_connection_state_t rabbitmq_connect(char const *hostname,
 	amqp_basic_consume(conn, 1, queuename, amqp_empty_bytes, 0, 1, 0,
 						amqp_empty_table);
 	die_on_amqp_error(amqp_get_rpc_reply(conn), "Consuming");
+	
+	syslog(LOG_DEBUG, "Connection to RabbitMQ established.");
 
 	return conn;
 }
->>>>>>> rabbitmq
 
 int main(int argc, char *argv[]) {
 
@@ -161,24 +162,37 @@ int main(int argc, char *argv[]) {
 	// Change the file mode mask
 	umask(0);
 
-	int sleep_interval;
 	dictionary * config;
 	int log_level;
+	char * rabbitmq_host;
+	int rabbitmq_port;
+	char *rabbitmq_user;
+	char *rabbitmq_password;
+	char * rabbitmq_exchange;
+	char * rabbitmq_routing_key;
 
 	config = iniparser_load("shepherd.ini");
     if (config == NULL) {
 		exit(EXIT_FAILURE);
     }
 
-	sleep_interval = iniparser_getint(config, "shepherd:sleep_interval", 15);
 	log_level = iniparser_getint(config, "shepherd:log_level", LOG_INFO);
+	rabbitmq_host = iniparser_getstring(config, "rabbitmq:host", "localhost");
+	rabbitmq_port = iniparser_getint(config, "rabbitmq:port", 5672);
+	rabbitmq_user = iniparser_getstring(config, "rabbitmq:user", "guest");
+	rabbitmq_password = iniparser_getstring(config, "rabbitmq:password", "guest");
+	rabbitmq_exchange = iniparser_getstring(config, "rabbitmq:exchange",
+											"amq.direct");
+	rabbitmq_routing_key= iniparser_getstring(config, "rabbitmq:routing_key",
+												"example");
 	
 	// Open any logs here
 	setlogmask(LOG_UPTO(LOG_DEBUG));
 	openlog("shepherd", LOG_CONS | LOG_PID | LOG_NDELAY, LOG_USER);
 	syslog(LOG_DEBUG, "Logging mechanism initialized");
-	syslog(LOG_DEBUG, "sheperd:sleep_interval = %i", sleep_interval);
-	syslog(LOG_DEBUG, "sheperd:log_level = %i", log_level);
+	syslog(LOG_DEBUG, "shepherd:log_level = %i", log_level);
+	syslog(LOG_DEBUG, "rabbitmq: %s %d %s %s", rabbitmq_host, rabbitmq_port,
+			rabbitmq_exchange, rabbitmq_routing_key);
 
 	// Create a new SID for the child process
 	sid = setsid();
@@ -206,8 +220,14 @@ int main(int argc, char *argv[]) {
 	// Daemon-specific initialization goes here
 	daemon_init();
 	fflush(stdout);
-	amqp_connection_state_t conn = rabbitmq_connect("localhost", 5672,
-													"amq.direct", "test");
+	amqp_connection_state_t conn = rabbitmq_connect(
+		rabbitmq_host,
+		rabbitmq_port,
+		rabbitmq_user,
+		rabbitmq_password,
+		rabbitmq_exchange,
+		rabbitmq_routing_key
+	);
 
 	// An infinite loop
 	run(conn);
