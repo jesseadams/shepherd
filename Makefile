@@ -13,7 +13,7 @@ options:
 	@echo "CC       = ${CC}"
 
 sentinal:
-	$(CC) $(CFLAGS) $(SRC) -o $(DST)
+	libtool --mode=link --tag=CC $(CC) $(CFLAGS) $(SRC) -o $(DST) lib/rabbitmq/librabbitmq/librabbitmq.la lib/rabbitmq/examples/libutils.la
 
 install:
 	@echo "$(DST) build COMPLETED"

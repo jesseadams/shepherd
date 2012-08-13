@@ -1,3 +1,6 @@
 [submodule "lib/iniparser"]
 	path = lib/iniparser
 	url = https://github.com/ndevilla/iniparser.git
+[submodule "lib/rabbitmq"]
+	path = lib/rabbitmq
+	url = https://github.com/alanxz/rabbitmq-c.git
